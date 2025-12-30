@@ -46,20 +46,29 @@ ml-restoration：Noise + JPEG 图像复原（从 0 到 1）
    - Demo：Gradio/Streamlit 支持上传图片与结果展示
 
 ## 当前进展（截至目前）
-已完成“启动与验证阶段（Bootstrap & Sanity Check）”：
+已完成“可训练闭环（Trainable Loop）”与基础交付：
 
 - **开发环境可用**
   - 在 MacBook Pro（Apple M4 Pro）上验证 PyTorch MPS 可用，可进行 GPU 加速训练。
-- **工程骨架已建立**
-  - 已建立项目目录结构：`src/ / scripts/ / data/ / outputs/` 等。
-  - 已解决 `src` 模块导入问题（通过将 `src` 设为包并以 `python -m ...` 方式运行脚本）。
-- **数据准备就绪**
-  - `data/clean_train/` 已放入至少若干张干净图像，满足最小训练数据输入需求。
-- **退化管线已实现且验证通过**
-  - `src/datasets/degradation.py`：实现高斯噪声 + JPEG 压缩的退化函数，sigma/quality 可控随机采样。
-  - `scripts/preview_degradation.py`：已能输出 `outputs/clean.png` 与 `outputs/degraded.png`，退化效果可视化验证通过。
+- **数据与退化**
+  - `src/datasets/degradation.py`：高斯噪声 + JPEG 压缩退化函数已实现并验证。
+  - `scripts/preview_degradation.py`：可视化退化样例输出验证通过。
+  - `data/clean_train/`：已追加高清图片（当前约 252 张）。
+- **Dataset/DataLoader**
+  - `src/datasets/paired_dataset.py`：随机 patch 裁剪 + 在线退化 + 张量化 + 训练/验证划分。
+- **模型**
+  - `src/models/resnet.py`：轻量 ResNet 复原网络（残差学习）。
+- **训练与实验管理**
+  - `scripts/train.py`：训练循环、checkpoint、固定样例保存、按 epoch 记录 PSNR/SSIM 到 `metrics.jsonl`、保存 best checkpoint。
+- **评估**
+  - `src/metrics/psnr_ssim.py`：PSNR/SSIM 实现。
+  - `scripts/eval.py`：评估并输出 `outputs/eval/metrics.json`。
+- **推理与交付**
+  - `scripts/infer.py`：单图/批量推理。
+  - `scripts/export_torchscript.py`：TorchScript 导出。
+  - `scripts/demo_gradio.py`：Gradio 本地 Demo（已禁用公网 share）。
 
-当前状态：已跑通“读图 → 退化 → 输出”的最小闭环，具备进入训练闭环的全部前置条件。
+当前状态：训练/评估/推理/导出/本地 Demo 已打通，可进入质量提升与实验迭代。
 
 ## 环境与运行约定
 ### 硬件/系统
@@ -72,38 +81,43 @@ ml-restoration：Noise + JPEG 图像复原（从 0 到 1）
 
 ### 运行方式约定
 - 从项目根目录使用模块方式运行脚本（保证 `src` 可导入）：
-  - `python -m scripts.preview_degradation`
-  - `python -m scripts.check_mps`
+  - `python3 -m scripts.preview_degradation`
+  - `python3 -m scripts.check_mps`
+  - `python3 -m scripts.train`
+  - `python3 -m scripts.eval`
+  - `python3 -m scripts.infer`
+  - `python3 -m scripts.export_torchscript`
+  - `python3 -m scripts.demo_gradio`
+- 如遇到系统 Python/venv 混用问题，使用绝对路径：
+  - `/Users/***/.venv/bin/python3 -m scripts.xxx`
 
 ## 代码结构（当前/计划）
-- `src/datasets/`：数据集与退化逻辑（已存在 degradation.py）
-- `src/models/`：模型定义（待实现）
-- `src/metrics/`：PSNR/SSIM 等（待实现）
-- `src/utils/`：通用工具（seed、io、logging、config）（待实现）
-- `scripts/`：入口脚本（check_mps / preview_degradation 已存在；train/eval/infer/demo 待实现）
-- `configs/`：训练/评估配置（待实现）
-- `outputs/`：输出图片、日志、checkpoint（已存在用于保存预览结果）
-- `data/`：数据集目录（`clean_train` 已存在）
+- `src/datasets/`：数据集与退化逻辑（`degradation.py`，`paired_dataset.py`）
+- `src/models/`：模型定义（`resnet.py`）
+- `src/metrics/`：PSNR/SSIM（`psnr_ssim.py`）
+- `src/utils/`：通用工具（seed、io、logging、config）（待补充）
+- `scripts/`：
+  - 已有：`check_mps.py`、`preview_degradation.py`、`train.py`、`eval.py`、`infer.py`、`export_torchscript.py`、`demo_gradio.py`
+- `configs/`：训练/评估配置（待补充）
+- `outputs/`：输出图片、日志、checkpoint（训练输出在 `outputs/train/`）
+- `data/`：数据集目录（`clean_train`）
 
 ## 下一阶段计划（最近里程碑）
-进入“可训练闭环（Trainable Loop）”，按优先级推进：
+进入“质量提升与实验迭代”阶段，按优先级推进：
 
-1. **Dataset/DataLoader**
-   - 实现在线 patch 随机裁剪、退化、张量化，返回 `(degraded, clean)`
-   - 最小可用：训练集 + 验证集划分（可先用同源数据随机切分）
+1. **训练质量提升**
+   - 增加训练数据与训练轮数
+   - 退化参数课程学习（先轻后重）
+   - 尝试更强损失（L1 + SSIM）与学习率调度
 
-2. **最小模型 + 训练脚本**
-   - 实现一个轻量 ResNet 复原网络（先稳定，再升级）
-   - 实现 `scripts/train.py`：训练循环、日志、checkpoint
+2. **配置化与复现**
+   - 引入 `configs/`（训练/评估配置文件）
+   - 记录更完整的训练日志（csv/jsonl 或 TensorBoard）
 
-3. **评估与可视化**
-   - 实现 `scripts/eval.py`：PSNR/SSIM
-   - 训练中定期保存对比图，便于肉眼检查
-
-4. **推理与交付**
-   - `scripts/infer.py` 支持单图/批量
-   - 导出 TorchScript/ONNX
-   - Gradio Demo（可选作为阶段 1 收尾）
+3. **推理与交付增强**
+   - 支持批量推理、目录输入输出、可选保存中间结果
+   - 增加 ONNX 导出（可选）
+   - Demo 增强（多图批量、可视化对比、禁用公网分享）
 
 ## 关键工程约束与注意事项
 - 首阶段优先保证“可复现 + 可评估 + 可交付”，不要提前引入 GAN/Transformer 等高不确定性路线。
@@ -114,5 +128,4 @@ ml-restoration：Noise + JPEG 图像复原（从 0 到 1）
   - 可视化对比图中，pred 相比 degraded 有明确改善
 - 控制显存/性能：
   - 先用 patch=256、batch 从小到大试；MPS 上优先保证稳定运行。
-- 所有脚本以 `python -m scripts.xxx` 方式运行，确保 import 行为一致。
-
+- 所有脚本以 `python3 -m scripts.xxx` 方式运行，确保 import 行为一致。

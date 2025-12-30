@@ -14,7 +14,8 @@ def jpeg_compress(img: np.ndarray, quality: int) -> np.ndarray:
     # img: HWC, float32 in [0,1]
     pil = Image.fromarray((img * 255.0).astype(np.uint8))
     buffer = io.BytesIO()
-    pil.save(buffer, format="JPEG", quality=int(quality), subsampling=0, optimize=True)
+    # BytesIO does not support fileno; disable optimize to avoid PIL errors.
+    pil.save(buffer, format="JPEG", quality=int(quality), subsampling=0, optimize=False)
     buffer.seek(0)
     rec = Image.open(buffer)
     rec = np.array(rec).astype(np.float32) / 255.0
